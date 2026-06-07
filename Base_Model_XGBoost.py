@@ -4,36 +4,13 @@ XGBoost version of the Table 2 baseline experiments:
     Base + KL (ordinal)
     Base + esKOA (original)
     Base + esKOA (alternative)
-
-This script uses grouped cross-validated predicted probabilities, with
-participant ID as the group, so knees from the same participant are kept in the
-same fold. XGBoost does not produce odds ratios, so the odds-ratio column is
-reported as "n/a (XGBoost)".
-
-The workbook contains disease_activity_orig and disease_activity_new as
-continuous scores rather than obvious 0/1 flags. By default, this script
-classifies esKOA as score >= 0. Change the thresholds below if your project
-documentation defines a different cutoff.
-
-Output:
-    1. Terminal summary
-    2. table2_xgboost_summary.csv
-    3. table2_xgboost_predictions.csv
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-import warnings
-
 import numpy as np
 import pandas as pd
-
-warnings.filterwarnings(
-    "ignore",
-    message="Workbook contains no default style, apply openpyxl's default",
-    category=UserWarning,
-)
 
 try:
     from scipy import stats
@@ -45,10 +22,8 @@ try:
     from xgboost import XGBClassifier
 except ModuleNotFoundError as exc:
     raise SystemExit(
-        "This script needs xgboost, scipy, scikit-learn, openpyxl, pandas, and numpy.\n"
-        "Install them in your py311 environment, for example:\n"
         "    pip install xgboost openpyxl pandas numpy scipy scikit-learn\n"
-        "Then rerun this script."
+        
     ) from exc
 
 
@@ -66,12 +41,6 @@ RANDOM_STATE = 20260606
 N_ESTIMATORS = 300
 LEARNING_RATE = 0.03
 MAX_DEPTH = 2
-
-# 200 cluster-bootstrap reps is fast for interactive work. Increase to 1000+
-# only when you need more stable CI estimates.
-BOOTSTRAP_REPS = 200
-BOOTSTRAP_SEED = 20260606
-
 
 def hosmer_lemeshow_test(y_true: pd.Series, y_prob: pd.Series, groups: int = 10) -> tuple[float, float]:
     """Hosmer-Lemeshow calibration test using deciles of predicted risk."""
@@ -115,7 +84,6 @@ def prepare_baseline_data() -> pd.DataFrame:
     df["eskoa_alternative"] = (alt_score >= ESKOA_ALTERNATIVE_THRESHOLD).astype("float")
     df.loc[alt_score.isna(), "eskoa_alternative"] = np.nan
 
-    # Use one complete-case analytic sample so all rows compare the same knees.
     cols = [
         "ID",
         "side",
