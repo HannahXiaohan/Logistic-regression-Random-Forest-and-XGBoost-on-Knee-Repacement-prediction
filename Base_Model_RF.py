@@ -7,18 +7,9 @@ Random Forest version of the Table 2 baseline experiments:
 
 This script uses grouped cross-validated predicted probabilities, with
 participant ID as the group, so knees from the same participant are kept in the
-same fold. Random Forests do not produce odds ratios, so the odds-ratio column
-is reported as "n/a (RF)".
+same fold. 
 
-The workbook contains disease_activity_orig and disease_activity_new as
-continuous scores rather than obvious 0/1 flags. By default, this script
-classifies esKOA as score >= 0. Change the thresholds below if your project
-documentation defines a different cutoff.
 
-Output:
-    1. Terminal summary
-    2. table2_random_forest_summary.csv
-    3. table2_random_forest_predictions.csv
 """
 
 from __future__ import annotations
@@ -43,13 +34,6 @@ try:
     from sklearn.model_selection import GroupKFold
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import OneHotEncoder
-except ModuleNotFoundError as exc:
-    raise SystemExit(
-        "This script needs scipy, scikit-learn, openpyxl, pandas, and numpy.\n"
-        "Install them in your py311 environment, for example:\n"
-        "    pip install openpyxl pandas numpy scipy scikit-learn\n"
-        "Then rerun this script."
-    ) from exc
 
 
 DATA_PATH = Path("/Users/jiangxiaohan/Desktop/materials of summer project/combined data.xlsx")
@@ -64,11 +48,6 @@ ESKOA_ALTERNATIVE_THRESHOLD = 0
 N_SPLITS = 5
 RANDOM_STATE = 20260606
 N_ESTIMATORS = 500
-
-# 200 cluster-bootstrap reps is fast for interactive work. Increase to 1000+
-# only when you need more stable CI estimates.
-BOOTSTRAP_REPS = 200
-BOOTSTRAP_SEED = 20260606
 
 
 def hosmer_lemeshow_test(y_true: pd.Series, y_prob: pd.Series, groups: int = 10) -> tuple[float, float]:
@@ -113,7 +92,6 @@ def prepare_baseline_data() -> pd.DataFrame:
     df["eskoa_alternative"] = (alt_score >= ESKOA_ALTERNATIVE_THRESHOLD).astype("float")
     df.loc[alt_score.isna(), "eskoa_alternative"] = np.nan
 
-    # Use one complete-case analytic sample so all rows compare the same knees.
     cols = [
         "ID",
         "side",
