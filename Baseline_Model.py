@@ -14,8 +14,6 @@ two knees from the same participant.
 from __future__ import annotations
 
 from pathlib import Path
-import warnings
-
 import numpy as np
 import pandas as pd
 
@@ -24,15 +22,6 @@ try:
     from sklearn.metrics import roc_auc_score
     import statsmodels.api as sm
     import statsmodels.formula.api as smf
-except ModuleNotFoundError as exc:
-    raise SystemExit(
-        "This replication needs scipy, scikit-learn, and statsmodels "
-        "(statsmodels is required for logistic GEE).\n"
-        "Install it in your Python environment, for example:\n"
-        "    pip install statsmodels openpyxl pandas scipy scikit-learn\n"
-        "Then rerun this script."
-    ) from exc
-
 
 DATA_PATH = Path("/Users/jiangxiaohan/Desktop/materials of summer project/combined data.xlsx")
 SHEET_NAME = "COMPARABLE"
@@ -120,12 +109,7 @@ def hosmer_lemeshow_test(y_true: pd.Series, y_prob: pd.Series, groups: int = 10)
 
 def prepare_baseline_data() -> pd.DataFrame:
     df = pd.read_excel(DATA_PATH, sheet_name=SHEET_NAME)
-
-    # Table 2 is the OAI baseline analysis.
     df = df[df["visit"].astype("string").str.lower().eq("v00")].copy()
-
-    # Future KR over the next 5 years. v99KRstatus == 3 is adjudicated KR in
-    # this workbook, and v99KRmonths gives months from baseline to KR.
     df["kr_5yr"] = (
         df["v99KRstatus"].eq(3)
         & df["v99KRmonths"].notna()
