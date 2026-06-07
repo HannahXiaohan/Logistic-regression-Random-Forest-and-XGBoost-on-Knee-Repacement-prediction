@@ -10,7 +10,7 @@
 <img width="1379" height="98" alt="image" src="https://github.com/user-attachments/assets/d8e23931-30a2-41cd-a106-214883691df9" />
 
 # Conclusion 
-Evaluated the Models with AUC( area under curve), P values, and 95% Confidence intervals. The Logistic Regression performed best on this data compared with Random Forest, and XGBoost models. Within the LR output, adding the KL(ordinal) features improved the baseline's AUC from 0.627 to 0.887. Therefore, we conclude that KL(ordinal) is a significant feature to consider for the knee replacement surgery. 
+Evaluated the Models with AUC( area under curve), P values, and 95% Confidence intervals. The Logistic Regression performed best on this data compared with Random Forest, and XGBoost models. Within the LR output, adding the KL(ordinal) features improved the baseline's AUC from 0.627 to 0.887. Therefore, we concluded that KL(ordinal) is a significant feature to consider for the knee replacement surgery. 
 
 
 
