@@ -12,29 +12,14 @@ Output:
 from __future__ import annotations
 
 from pathlib import Path
-import warnings
-
 import numpy as np
 import pandas as pd
-
-warnings.filterwarnings(
-    "ignore",
-    message="Workbook contains no default style, apply openpyxl's default",
-    category=UserWarning,
-)
 
 try:
     from scipy import stats
     from sklearn.metrics import roc_auc_score
     import statsmodels.api as sm
     import statsmodels.formula.api as smf
-except ModuleNotFoundError as exc:
-    raise SystemExit(
-        "This script needs scipy, scikit-learn, and statsmodels.\n"
-        "Install them in your py311 environment, for example:\n"
-        "    pip install statsmodels openpyxl pandas scipy scikit-learn\n"
-        "Then rerun this script."
-    ) from exc
 
 
 DATA_PATH = Path("/Users/jiangxiaohan/Desktop/materials of summer project/combined data.xlsx")
@@ -42,12 +27,6 @@ SHEET_NAME = "COMPARABLE"
 
 OUT_SUMMARY = Path("table2_base_plus_kl_summary.csv")
 OUT_PREDICTIONS = Path("table2_base_plus_kl_predictions.csv")
-
-# 200 cluster-bootstrap reps is much faster for interactive work. Increase to
-# 1000+ only when you need publication-grade CI precision.
-BOOTSTRAP_REPS = 200
-BOOTSTRAP_SEED = 20260606
-
 
 def hosmer_lemeshow_test(y_true: pd.Series, y_prob: pd.Series, groups: int = 10) -> tuple[float, float]:
     """Hosmer-Lemeshow calibration test using deciles of predicted risk."""
@@ -86,8 +65,6 @@ def prepare_baseline_data() -> pd.DataFrame:
     df["bmi"] = pd.to_numeric(df["v00bmi"], errors="coerce")
     df["sex"] = df["P02SEX"].astype("category")
     df["race"] = df["P02RACE"].astype("category")
-
-    # KL grade is treated as ordinal, matching "Base + KL (ordinal)".
     df["kl_ordinal"] = pd.to_numeric(df["V00XRKL"], errors="coerce")
 
     analytic = df[
@@ -151,9 +128,6 @@ def bootstrap_reclassification_ci(
     rows = data[["ID", "kr_5yr"]].copy()
     rows["p_base"] = p_base.to_numpy()
     rows["p_new"] = p_new.to_numpy()
-
-    # Pre-split row positions by participant. This avoids slow DataFrame
-    # filtering and concat inside every bootstrap replicate.
     cluster_indices = [
         group.index.to_numpy()
         for _, group in rows.reset_index(drop=True).groupby("ID", sort=False)
@@ -186,9 +160,6 @@ def main() -> None:
 
     base_formula = "kr_5yr ~ age + C(sex) + C(race) + bmi"
     kl_formula = "kr_5yr ~ age + C(sex) + C(race) + bmi + kl_ordinal"
-
-    # The base model is fit only as the reference needed for reclassification,
-    # NRI, and IDI. It is not printed or saved as a separate result row.
     print("Fitting reference base model for reclassification metrics...")
     base_result, p_base, base_auc, base_hl_stat, base_hl_p = fit_gee(analytic, base_formula)
     print("Fitting Base + KL ordinal model...")
