@@ -3,16 +3,6 @@ Repeat the Table 2 baseline experiments:
     Base Model
     Base Model + esKOA (original)
     Base Model + esKOA (alternative)
-
-This script uses the supplied combined data workbook. It intentionally omits
-the injury/surgery covariate because that variable was not identifiable in the
-provided Codebook.xlsx.
-
-The workbook contains disease_activity_orig and disease_activity_new as
-continuous scores rather than obvious 0/1 flags. By default, this script
-classifies esKOA as score >= 0. Change the thresholds below if your project
-documentation defines a different cutoff.
-
 Output:
     1. Terminal summary for Base + esKOA rows
     2. table2_base_plus_eskoa_summary.csv
@@ -38,14 +28,6 @@ try:
     from sklearn.metrics import roc_auc_score
     import statsmodels.api as sm
     import statsmodels.formula.api as smf
-except ModuleNotFoundError as exc:
-    raise SystemExit(
-        "This script needs scipy, scikit-learn, and statsmodels.\n"
-        "Install them in your py311 environment, for example:\n"
-        "    pip install statsmodels openpyxl pandas scipy scikit-learn\n"
-        "Then rerun this script."
-    ) from exc
-
 
 DATA_PATH = Path("/Users/jiangxiaohan/Desktop/materials of summer project/combined data.xlsx")
 SHEET_NAME = "COMPARABLE"
@@ -55,12 +37,6 @@ OUT_PREDICTIONS = Path("table2_base_plus_eskoa_predictions.csv")
 
 ESKOA_ORIGINAL_THRESHOLD = 0
 ESKOA_ALTERNATIVE_THRESHOLD = 0
-
-# 200 cluster-bootstrap reps is fast for interactive work. Increase to 1000+
-# only when you need publication-grade CI precision.
-BOOTSTRAP_REPS = 200
-BOOTSTRAP_SEED = 20260606
-
 
 def hosmer_lemeshow_test(y_true: pd.Series, y_prob: pd.Series, groups: int = 10) -> tuple[float, float]:
     """Hosmer-Lemeshow calibration test using deciles of predicted risk."""
