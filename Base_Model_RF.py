@@ -11,8 +11,7 @@ odds ratios, so the odds-ratio column is reported as "n/a (RF)".
 
 The workbook contains disease_activity_orig and disease_activity_new as
 continuous scores rather than obvious 0/1 flags. By default, this script
-classifies esKOA as score >= 0. Change the thresholds below if your project
-documentation defines a different cutoff.
+classifies esKOA as score >= 0. 
 
 Output:
     1. Terminal summary
@@ -23,16 +22,10 @@ Output:
 from __future__ import annotations
 
 from pathlib import Path
-import warnings
 
 import numpy as np
 import pandas as pd
 
-warnings.filterwarnings(
-    "ignore",
-    message="Workbook contains no default style, apply openpyxl's default",
-    category=UserWarning,
-)
 
 try:
     from scipy import stats
@@ -44,10 +37,7 @@ try:
     from sklearn.preprocessing import OneHotEncoder
 except ModuleNotFoundError as exc:
     raise SystemExit(
-        "This script needs scipy, scikit-learn, openpyxl, pandas, and numpy.\n"
-        "Install them in your py311 environment, for example:\n"
-        "    pip install openpyxl pandas numpy scipy scikit-learn\n"
-        "Then rerun this script."
+        
     ) from exc
 
 
