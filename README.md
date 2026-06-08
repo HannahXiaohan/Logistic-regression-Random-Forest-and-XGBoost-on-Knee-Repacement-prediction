@@ -3,7 +3,8 @@
 <img width="1299" height="95" alt="image" src="https://github.com/user-attachments/assets/a0dcc9f6-d120-4ef0-9c7f-8da96cf66ede" />
 
 # XGBoost Base Model compared with Base Model + KL, Base Model + esKOA(original), Base Model + esKOA(alternative)
-<img width="1297" height="94" alt="image" src="https://github.com/user-attachments/assets/2da757e6-6301-4644-9cbe-c145b8a38880" />
+<img width="1235" height="176" alt="image" src="https://github.com/user-attachments/assets/22253f5b-4a45-488a-9c1c-fe673bfea70a" />
+
 
 # Random Forest Base Model compared with Base Model + KL, Base Model + esKOA(original), Base Model + esKOA(alternative)
 
