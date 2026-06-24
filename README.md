@@ -4,7 +4,7 @@
 
 
 # Conclusion 
-Evaluated the model with ROC - AUC, Hosmer–Lemeshow (H-L) test, net reclassification improvement (NRI) index and the integrated discrimination improvement (IDI) index. The AUC increased from 0.68 to 0.89, while adding the KL degree(ordinal) into the group. we concluded that esKOA(ordinal) is a significant feature to consider for the knee replacement surgery. 
+Evaluated the model with ROC - AUC, Hosmer–Lemeshow (H-L) test, net reclassification improvement (NRI) index and the integrated discrimination improvement (IDI) index. The AUC increased from 0.68 to 0.89, while adding the KL degree(ordinal) into the group. we concluded that KL degree(ordinal) is a most significant feature contributing to future knee replacement. 
 
 
 
