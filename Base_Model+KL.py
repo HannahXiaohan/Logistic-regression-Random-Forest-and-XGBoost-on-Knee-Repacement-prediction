@@ -1,7 +1,5 @@
 from __future__ import annotations
-from copy import copy
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -11,14 +9,12 @@ from sklearn.metrics import roc_auc_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_PATH = Path("/Users/jiangxiaohan/Desktop/materials of summer project/combined data.xlsx")
 SHEET_NAME = "COMPARABLE"
 
-OUT_TABLE_CSV = SCRIPT_DIR / "table2_base_model_kl_sklearn.csv"
-OUT_PREDICTIONS = SCRIPT_DIR / "table2_base_model_kl_predictions.csv"
-
+OUT_TABLE_CSV = SCRIPT_DIR / "table2_baseline.csv"
+OUT_PREDICTIONS = SCRIPT_DIR / "table2_baseline_predictions.csv"
 
 def pick_column(df: pd.DataFrame, candidates: list[str], label: str) -> str:
     for col in candidates:
@@ -31,9 +27,12 @@ def prepare_baseline_data() -> pd.DataFrame:
     raw = pd.read_excel(DATA_PATH, sheet_name=SHEET_NAME)
     df = raw[raw["visit"].astype("string").str.lower().eq("v00")].copy()
 
-    age_col = pick_column(df, ["V00AGE", "age"], "baseline age")
-    bmi_col = pick_column(df, ["v00bmi", "V00BMI", "bmi"], "baseline BMI")
-    kl_col = pick_column(df, ["V00XRKL", "xrkl"], "baseline KL grade")
+    age_col = pick_column(df, ["age", "V00AGE"], "baseline age")
+    bmi_col = pick_column(df, ["bmi", "v00bmi", "V00BMI"], "baseline BMI")
+    kl_col = pick_column(df, ["xrkl", "V00XRKL"], "baseline KL grade")
+    womac_pain_col = pick_column(df, ["womkp", "v00womkp"], "baseline WOMAC pain")
+    womac_function_col = pick_column(df, ["womadl", "v00womadl"], "baseline WOMAC function")
+    persistent_pain_col = pick_column(df, ["kp12cv", "V00KP12CV"], "baseline persistent pain")
 
     df["kr_5yr"] = (
         df["v99KRstatus"].eq(3)
@@ -48,6 +47,25 @@ def prepare_baseline_data() -> pd.DataFrame:
     df["kl_eq_4"] = df["kl_ordinal"].eq(4).astype(int)
     df["kl_ge_3"] = df["kl_ordinal"].ge(3).astype(int)
     df["kl_ge_2"] = df["kl_ordinal"].ge(2).astype(int)
+    df["symptoms"] = (
+        pd.to_numeric(df[womac_pain_col], errors="coerce")
+        + pd.to_numeric(df[womac_function_col], errors="coerce")
+    )
+    df["symptoms_ordinal"] = np.select(
+        [df["symptoms"] > 33, df["symptoms"] > 23, df["symptoms"] > 12],
+        [3, 2, 1],
+        default=0,
+    )
+    df["symptoms_gt_33"] = df["symptoms"].gt(33).astype(int)
+    df["symptoms_gt_23"] = df["symptoms"].gt(23).astype(int)
+    df["symptoms_gt_12"] = df["symptoms"].gt(12).astype(int)
+    df["persistent_pain"] = pd.to_numeric(df[persistent_pain_col], errors="coerce").eq(1).astype(int)
+    df["eskoa_original_proxy"] = pd.to_numeric(
+        df.get("disease_activity_orig", np.nan), errors="coerce"
+    ).gt(0).astype(int)
+    df["eskoa_alternative_proxy"] = pd.to_numeric(
+        df.get("disease_activity_new", np.nan), errors="coerce"
+    ).gt(0).astype(int)
 
     keep = [
         "ID",
@@ -61,11 +79,18 @@ def prepare_baseline_data() -> pd.DataFrame:
         "kl_eq_4",
         "kl_ge_3",
         "kl_ge_2",
+        "symptoms_ordinal",
+        "symptoms_gt_33",
+        "symptoms_gt_23",
+        "symptoms_gt_12",
+        "persistent_pain",
+        "eskoa_original_proxy",
+        "eskoa_alternative_proxy",
     ]
-    analytic = df[keep].replace([np.inf, -np.inf], np.nan).dropna().copy()
+    base_required = ["ID", "side", "kr_5yr", "age", "bmi", "sex", "race"]
+    analytic = df[keep].replace([np.inf, -np.inf], np.nan).dropna(subset=base_required).copy()
     analytic["ID"] = analytic["ID"].astype("string")
     return analytic
-
 
 def make_model(numeric_features: list[str], categorical_features: list[str]) -> Pipeline:
     preprocessor = ColumnTransformer(
@@ -85,6 +110,7 @@ def make_model(numeric_features: list[str], categorical_features: list[str]) -> 
             (
                 "model",
                 LogisticRegression(
+                    C=1e12,
                     solver="lbfgs",
                     max_iter=5000,
                 ),
@@ -112,7 +138,11 @@ def model_design_matrix(model: Pipeline, data: pd.DataFrame, predictors: list[st
 
 
 def coefficient_or_ci(model: Pipeline, data: pd.DataFrame, predictor: str) -> tuple[float, float, float]:
+    """Approximate OR and 95% CI for one added numeric predictor.
 
+    The model standardizes numeric predictors, so this converts the coefficient
+    back to the original predictor unit before exponentiating.
+    """
     beta_scaled = float(model.named_steps["model"].coef_[0][2])
     scale = float(model.named_steps["preprocess"].named_transformers_["num"].scale_[2])
     beta = beta_scaled / scale
@@ -164,7 +194,6 @@ def continuous_reclassification(y: pd.Series, p_base: pd.Series, p_new: pd.Serie
         "idi": float(idi),
     }
 
-
 def bootstrap_reclassification_ci(
     data: pd.DataFrame,
     p_base: pd.Series,
@@ -196,7 +225,6 @@ def bootstrap_reclassification_ci(
         for key, values in out.items()
     }
 
-
 def fmt_num(value: float) -> str:
     return f"{value:.2f}"
 
@@ -213,47 +241,57 @@ def fmt_or_ci(or_ci: tuple[float, float, float]) -> str:
     odds, low, high = or_ci
     return f"{odds:.2f} ({low:.2f}-{high:.2f})"
 
-
 def summarize_model(
     label: str,
     data: pd.DataFrame,
-    predictor: str | None,
+    predictors: list[str] | None,
     p_base: pd.Series | None,
-    bootstrap: bool = True,
+    n_events_label: str,
+    bootstrap: bool = False,
 ) -> tuple[dict[str, str], pd.Series]:
-    predictors = [] if predictor is None else [predictor]
-    model, prob = fit_predict(data, predictors)
-    y = data["kr_5yr"]
-    _, hl_p = hosmer_lemeshow_test(y, prob)
+    predictors = [] if predictors is None else predictors
+    required = ["kr_5yr", "age", "bmi", "sex", "race"] + predictors
+    model_data = data.dropna(subset=required).copy()
+    model, model_prob = fit_predict(model_data, predictors)
+    prob = pd.Series(np.nan, index=data.index, name="predicted_probability")
+    prob.loc[model_data.index] = model_prob
+    y = model_data["kr_5yr"]
+    _, hl_p = hosmer_lemeshow_test(y, model_prob)
 
     event = y.eq(1)
     nonevent = y.eq(0)
     row = {
+        "n/events": n_events_label,
         "Model": label,
-        "AUC": fmt_num(roc_auc_score(y, prob)),
+        "AUC": fmt_num(roc_auc_score(y, model_prob)),
         "Hosmer-Lemeshow Test (p-value)": fmt_num(hl_p),
         "Odds Ratio for New Variable (95% CI)": "n/a",
         "% KR Correctly Reclassified": "n/a",
         "% No KR Correctly Reclassified": "n/a",
         "Net Reclassification Index (95% CI)": "n/a",
-        "Mean Probability for KR": fmt_num(prob[event].mean()),
-        "Mean Probability for No KR": fmt_num(prob[nonevent].mean()),
+        "Mean Probability for KR": fmt_num(model_prob[event].mean()),
+        "Mean Probability for No KR": fmt_num(model_prob[nonevent].mean()),
         "Integrated discrimination improvement (95% CI)": "n/a",
     }
 
-    if predictor is not None and p_base is not None:
-        row["Odds Ratio for New Variable (95% CI)"] = fmt_or_ci(
-            coefficient_or_ci(model, data, predictor)
-        )
-        reclass = continuous_reclassification(y, p_base, prob)
-        ci = bootstrap_reclassification_ci(data, p_base, prob) if bootstrap else {
-            "nri": (np.nan, np.nan),
-            "idi": (np.nan, np.nan),
-        }
+    if predictors and p_base is not None:
+        if len(predictors) == 1:
+            row["Odds Ratio for New Variable (95% CI)"] = fmt_or_ci(
+                coefficient_or_ci(model, model_data, predictors[0])
+            )
+        else:
+            row["Odds Ratio for New Variable (95% CI)"] = "Not shown"
+        base_aligned = p_base.loc[model_data.index]
+        reclass = continuous_reclassification(y, base_aligned, model_prob)
         row["% KR Correctly Reclassified"] = fmt_pct(reclass["kr_correct"])
         row["% No KR Correctly Reclassified"] = fmt_pct(reclass["no_kr_correct"])
-        row["Net Reclassification Index (95% CI)"] = fmt_ci(reclass["nri"], ci["nri"])
-        row["Integrated discrimination improvement (95% CI)"] = fmt_ci(reclass["idi"], ci["idi"])
+        if bootstrap:
+            ci = bootstrap_reclassification_ci(model_data, base_aligned, model_prob)
+            row["Net Reclassification Index (95% CI)"] = fmt_ci(reclass["nri"], ci["nri"])
+            row["Integrated discrimination improvement (95% CI)"] = fmt_ci(reclass["idi"], ci["idi"])
+        else:
+            row["Net Reclassification Index (95% CI)"] = fmt_num(reclass["nri"])
+            row["Integrated discrimination improvement (95% CI)"] = fmt_num(reclass["idi"])
 
     return row, prob
 
@@ -261,19 +299,13 @@ def summarize_model(
 def write_excel(table: pd.DataFrame) -> None:
     title = (
         "Table 2. Osteoarthritis Initiative's baseline visit: prognostic potential "
-        "to predict knee replacement (KR) of participant characteristics and KL grade."
-    )
-    notes = pd.DataFrame(
-        {
-            "Notes": [
-                "Base model covariates: age, sex, race, BMI.",
-            ]
-        }
+        "to predict knee replacement (KR) of participant characteristics, components "
+        "of end-stage knee osteoarthritis (esKOA), and esKOA."
     )
     with pd.ExcelWriter(OUT_TABLE_XLSX, engine="openpyxl") as writer:
-        table.to_excel(writer, sheet_name="Table 2 KL", index=False, startrow=2)
+        table.to_excel(writer, sheet_name="Table 2 Baseline", index=False, startrow=2)
         notes.to_excel(writer, sheet_name="Notes", index=False)
-        ws = writer.book["Table 2 KL"]
+        ws = writer.book["Table 2 Baseline"]
         ws["A1"] = title
         ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(table.columns))
         title_font = copy(ws["A1"].font)
@@ -284,7 +316,7 @@ def write_excel(table: pd.DataFrame) -> None:
         title_alignment.wrap_text = True
         ws["A1"].alignment = title_alignment
         ws.freeze_panes = "A4"
-        widths = [32, 10, 18, 26, 18, 20, 26, 18, 20, 28]
+        widths = [22, 38, 10, 18, 28, 18, 22, 26, 18, 22, 30]
         for idx, width in enumerate(widths, start=1):
             ws.column_dimensions[chr(64 + idx)].width = width
         for row in ws.iter_rows(min_row=3, max_row=3):
@@ -303,33 +335,42 @@ def main() -> None:
     data = prepare_baseline_data()
     print(f"Analytic sample: {len(data):,} knees, {data['ID'].nunique():,} participants")
     print(f"Knee replacements within 5 years: {data['kr_5yr'].sum():,}")
+    n_events_label = f"{len(data)} knees / {int(data['kr_5yr'].sum())} KR"
 
     print("Fitting base model...")
-    base_row, p_base = summarize_model("Base Model", data, None, None)
+    base_row, p_base = summarize_model("Base Model", data, None, None, n_events_label)
 
     specs = [
-        ("Base + KL (ordinal)", "kl_ordinal"),
-        ("Base + KL=4 (yes/no)", "kl_eq_4"),
-        ("Base + KL>=3 (yes/no)", "kl_ge_3"),
-        ("Base + KL>=2 (yes/no)", "kl_ge_2"),
+        ("Base + KL (ordinal)", ["kl_ordinal"]),
+        ("    Base + KL=4 (yes/no)", ["kl_eq_4"]),
+        ("    Base + KL>=3 (yes/no)", ["kl_ge_3"]),
+        ("    Base + KL>=2 (yes/no)", ["kl_ge_2"]),
+        ("    Base + Symptoms (ordinal)", ["symptoms_ordinal"]),
+        ("Base + Severe Symptoms (>33)", ["symptoms_gt_33"]),
+        ("    Base + Symptoms>=Intense (>23)", ["symptoms_gt_23"]),
+        ("Base + Symptoms>=Moderate (>12)", ["symptoms_gt_12"]),
+        ("Base + Persistent Pain", ["persistent_pain"]),
+        ("Base + esKOA (original proxy)", ["eskoa_original_proxy"]),
+        ("Base + esKOA (alternative proxy)", ["eskoa_alternative_proxy"]),
     ]
     rows = [base_row]
     predictions = data.copy()
     predictions["predicted_probability_base"] = p_base
 
-    for label, predictor in specs:
+    for label, predictors in specs:
         print(f"Fitting {label}...")
-        row, prob = summarize_model(label, data, predictor, p_base)
+        row, prob = summarize_model(label, data, predictors, p_base, n_events_label)
         rows.append(row)
-        predictions[f"predicted_probability_{predictor}"] = prob
-        predictions[f"prediction_change_{predictor}"] = prob - p_base
+        prediction_name = "_".join(predictors)
+        predictions[f"predicted_probability_{prediction_name}"] = prob
+        predictions[f"prediction_change_{prediction_name}"] = prob - p_base
 
     table = pd.DataFrame(rows)
     table.to_csv(OUT_TABLE_CSV, index=False)
     predictions.to_csv(OUT_PREDICTIONS, index=False)
     write_excel(table)
 
-    print("\nTable 2 baseline KL rows")
+    print("\nTable 2 baseline rows")
     print("=" * 90)
     print(table.to_string(index=False))
     print(f"\nSaved table CSV: {OUT_TABLE_CSV}")
