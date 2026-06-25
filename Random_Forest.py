@@ -1,13 +1,5 @@
-
-from __future__ import annotations
-
 import os
-import warnings
 from pathlib import Path
-
-os.environ["MPLCONFIGDIR"] = "/tmp/matplotlib-codex"
-os.environ["XDG_CACHE_HOME"] = "/tmp/matplotlib-codex"
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -31,15 +23,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
-warnings.filterwarnings(
-    "ignore",
-    message="Workbook contains no default style, apply openpyxl's default",
-    category=UserWarning,
-)
-
 RANDOM_STATE = 42
 DATA_PATH = Path("/Users/jiangxiaohan/Desktop/materials of summer project/combined data.xlsx")
-SHEET_NAME = "COMPARABLE"
 SCRIPT_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = SCRIPT_DIR / "random_forest_outputs"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
