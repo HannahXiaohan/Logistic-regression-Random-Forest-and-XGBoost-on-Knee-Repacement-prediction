@@ -11,7 +11,6 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DATA_PATH = Path("/Users/jiangxiaohan/Desktop/materials of summer project/combined data.xlsx")
-SHEET_NAME = "COMPARABLE"
 
 OUT_TABLE_CSV = SCRIPT_DIR / "table2_baseline.csv"
 OUT_PREDICTIONS = SCRIPT_DIR / "table2_baseline_predictions.csv"
